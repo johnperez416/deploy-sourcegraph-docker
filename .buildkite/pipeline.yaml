@@ -1,6 +1,7 @@
 $schema: "http://json.schemastore.org/buildkite"
 env:
-  IMAGE: "e2e-0040635f0-2022-03-16t17-33-08z"
+  # Build this image in sourcegraph/infrastructure by running `make e2e` in `gcp/images`
+  IMAGE: "e2e-db8a40720-2024-08-26t08-44-10z"
   VAGRANT_RUN_ENV: "CI"
 steps:
   - label: ":docker:"
@@ -35,3 +36,38 @@ steps:
     label: ":lock: security - checkov"
     agents: { queue: "standard" }
     soft_fail: true
+
+  # Please keep in mind that the release manifest uses specific branch names when creating releases.
+  # Therefore, if you update them, or if you decide to change how we detect what kind of build we're dealing
+  # with, please update this file as well.
+  - label: "(internal) Release: test"
+    if: build.branch =~ /^internal\/release-.*/
+    plugins:
+      - ssh://git@github.com/sourcegraph/sg-buildkite-plugin.git#main: ~
+    command: |
+      sg release run test --workdir=. --config-from-commit
+
+  - label: "(promote) Release: test"
+    if: build.branch =~ /^promote\/release-.*/
+    plugins:
+      - ssh://git@github.com/sourcegraph/sg-buildkite-plugin.git#main: ~
+    command: |
+      sg release run test --workdir=. --config-from-commit
+
+  - wait
+
+  - label: "(internal) Release: finalize"
+    if: build.branch =~ /^internal\/release-.*/
+    plugins:
+      - ssh://git@github.com/sourcegraph/sg-buildkite-plugin.git#main: ~
+    command: |
+      sg release run internal finalize --workdir=. --config-from-commit
+
+
+  - label: "(promote) Release: finalize"
+    if: build.branch =~ /^promote\/release-.*/
+    plugins:
+      - ssh://git@github.com/sourcegraph/sg-buildkite-plugin.git#main: ~
+    command: |
+      sg release run promote-to-public finalize --workdir=. --config-from-commit
+
